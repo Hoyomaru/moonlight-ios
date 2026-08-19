@@ -31,6 +31,11 @@
 - (id)initWithRefreshRate:(float)arg1 videoDynamicRange:(int)arg2;
 @end
 
+#if !TARGET_OS_TV
+@interface StreamFrameViewController () <OverlayContainerDelegate>
+@end
+#endif
+
 @implementation StreamFrameViewController {
     ControllerSupport *_controllerSupport;
     StreamManager *_streamMan;
@@ -213,6 +218,7 @@
 #if !TARGET_OS_TV
     // Phase 2: SwiftUIの透明オーバーレイをStreamViewの上に重ねる（今は表示確認のみ、タッチは奪わない）
     _overlayContainerVC = [[OverlayContainerViewController alloc] init];
+    _overlayContainerVC.delegate = self;
     [self addChildViewController:_overlayContainerVC];
     _overlayContainerVC.view.frame = self.view.bounds;
     _overlayContainerVC.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
@@ -722,6 +728,12 @@
     // GCMouse is horribly broken on iOS 14.0 for certain mice. Only lock
     // the cursor if there is a GCMouse present.
     return [GCMouse mice].count > 0;
+}
+#endif
+
+#if !TARGET_OS_TV
+- (void)overlayButtonAChanged:(BOOL)pressed {
+    Log(LOG_I, @"[Overlay] A button %@", pressed ? @"pressed" : @"released");
 }
 #endif
 
