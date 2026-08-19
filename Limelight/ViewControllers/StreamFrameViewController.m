@@ -219,7 +219,6 @@
     // Phase 2: SwiftUIの透明オーバーレイをStreamViewの上に重ねる（今は表示確認のみ、タッチは奪わない）
     _overlayContainerVC = [[OverlayContainerViewController alloc] init];
     _overlayContainerVC.delegate = self;
-    _overlayContainerVC.gameID = self.streamConfig.appID ?: @"default";
     [self addChildViewController:_overlayContainerVC];
     _overlayContainerVC.view.frame = self.view.bounds;
     _overlayContainerVC.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
