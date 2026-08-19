@@ -17,7 +17,13 @@ jobs:
 
       - name: Show available schemes
         run: xcodebuild -project Moonlight.xcodeproj -list
+        
+      - name: Install xcodeproj gem
+        run: gem install xcodeproj --no-document
 
+      - name: Sync new source files into Xcode project
+        run: ruby Scripts/sync_xcode_sources.rb
+        
       - name: Archive (no code signing)
         run: |
           xcodebuild archive \
