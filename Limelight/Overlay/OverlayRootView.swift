@@ -1,20 +1,24 @@
 import SwiftUI
 
 /// オーバーレイの中身（SwiftUI側）。
-/// Step3-4: 左スティック＋ABXY＋十字キーのフル仮想パッド。
-/// 位置・見た目はまだ仮固定（Phase4のレイアウトエディタで可変にする）。
+/// Step4-1: 位置・サイズを OverlayLayout（JSON保存可能）から読んで描画する形に変更。
+/// 見た目・動作はStep3-4と同じになるはずで、これは土台の切り替えのみ。
 struct OverlayRootView: View {
+    var layout: OverlayLayout
     var onButtonChanged: (OverlayButton, Bool) -> Void
     var onLeftStickChanged: (Float, Float) -> Void
 
     var body: some View {
         GeometryReader { geo in
-            ZStack {
-                // 左スティック
-                VirtualStick(onChange: onLeftStickChanged)
-                    .position(x: 80, y: geo.size.height - 120)
+            let stickPos = layout.resolvedPosition(for: layout.leftStick, in: geo.size)
+            let dpadPos = layout.resolvedPosition(for: layout.dpad, in: geo.size)
+            let abxyPos = layout.resolvedPosition(for: layout.abxy, in: geo.size)
 
-                // 十字キー
+            ZStack {
+                VirtualStick(onChange: onLeftStickChanged)
+                    .scaleEffect(layout.leftStick.scale)
+                    .position(stickPos)
+
                 VStack(spacing: 4) {
                     PadButton(label: "▲") { onButtonChanged(.dpadUp, $0) }
                     HStack(spacing: 4) {
@@ -23,9 +27,9 @@ struct OverlayRootView: View {
                     }
                     PadButton(label: "▼") { onButtonChanged(.dpadDown, $0) }
                 }
-                .position(x: geo.size.width - 260, y: geo.size.height - 100)
+                .scaleEffect(layout.dpad.scale)
+                .position(dpadPos)
 
-                // ABXY（右側ダイヤモンド配置）
                 VStack(spacing: 4) {
                     PadButton(label: "Y") { onButtonChanged(.y, $0) }
                     HStack(spacing: 4) {
@@ -34,7 +38,8 @@ struct OverlayRootView: View {
                     }
                     PadButton(label: "A") { onButtonChanged(.a, $0) }
                 }
-                .position(x: geo.size.width - 90, y: geo.size.height - 120)
+                .scaleEffect(layout.abxy.scale)
+                .position(abxyPos)
             }
         }
     }
@@ -63,7 +68,6 @@ private struct VirtualStick: View {
                     let clampedX = cos(angle) * distance
                     let clampedY = sin(angle) * distance
                     knobOffset = CGSize(width: clampedX, height: clampedY)
-                    // SwiftUIのY軸は下向きが正なので、上向きを正にするため反転する
                     onChange(Float(clampedX / radius), Float(-clampedY / radius))
                 }
                 .onEnded { _ in
