@@ -1,26 +1,26 @@
 import SwiftUI
 
 /// オーバーレイの中身（SwiftUI側）。
-/// Step4-3: 編集モードでのドラッグ移動＋ピンチリサイズ、通常モードでの長押しキー割り当て変更に対応。
+/// Step B: 「P」ボタンで手動プロファイル切り替え・新規作成に対応。
 struct OverlayRootView: View {
-    let gameID: String
     var onButtonChanged: (OverlayButton, Bool) -> Void
     var onLeftStickChanged: (Float, Float) -> Void
 
+    @State private var currentProfile: String
     @State private var layout: OverlayLayout
     @State private var isEditing = false
     @State private var activeResizeKeyPath: WritableKeyPath<OverlayLayout, OverlayElementLayout>?
     @State private var resizeBaseScale: CGFloat = 1.0
 
-    init(gameID: String,
-         layout: OverlayLayout,
-         onButtonChanged: @escaping (OverlayButton, Bool) -> Void,
+    init(onButtonChanged: @escaping (OverlayButton, Bool) -> Void,
          onLeftStickChanged: @escaping (Float, Float) -> Void) {
-        self.gameID = gameID
-        _layout = State(initialValue: layout)
+        let profile = OverlayProfileStore.shared.currentProfileName
+        _currentProfile = State(initialValue: profile)
+        _layout = State(initialValue: OverlayProfileStore.shared.load(profile: profile))
         self.onButtonChanged = onButtonChanged
         self.onLeftStickChanged = onLeftStickChanged
     }
+
     var body: some View {
         GeometryReader { geo in
             ZStack {
@@ -53,21 +53,61 @@ struct OverlayRootView: View {
                     .scaleEffect(layout.abxy.scale)
                 }
 
+                // 編集モード切り替えボタン
                 Circle()
                     .fill(isEditing ? Color.orange.opacity(0.85) : Color.green.opacity(0.6))
                     .frame(width: 36, height: 36)
                     .overlay(Text(isEditing ? "済" : "編").foregroundColor(.white).font(.caption))
                     .position(x: geo.size.width - 30, y: 30)
-                    .onTapGesture {
-                        isEditing.toggle()
+                    .onTapGesture { isEditing.toggle() }
+
+                // プロファイル切り替えボタン（長押しでメニュー）
+                Circle()
+                    .fill(Color.blue.opacity(0.7))
+                    .frame(width: 36, height: 36)
+                    .overlay(Text("P").foregroundColor(.white).font(.caption))
+                    .position(x: geo.size.width - 30, y: 74)
+                    .contextMenu {
+                        ForEach(OverlayProfileStore.shared.listProfiles(), id: \.self) { name in
+                            Button(name == currentProfile ? "✓ \(name)" : name) {
+                                switchProfile(to: name)
+                            }
+                        }
+                        Button("新規プロファイルを作成") {
+                            createNewProfile()
+                        }
                     }
+
+                // 現在のプロファイル名を薄く表示
+                Text(currentProfile)
+                    .font(.caption2)
+                    .foregroundColor(.white.opacity(0.6))
+                    .position(x: geo.size.width - 30, y: 96)
             }
             .coordinateSpace(name: "overlay")
         }
     }
 
     private func saveLayout() {
-        OverlayLayoutStore.shared.save(layout, gameID: gameID)
+        OverlayProfileStore.shared.save(layout, profile: currentProfile)
+    }
+
+    private func switchProfile(to name: String) {
+        currentProfile = name
+        OverlayProfileStore.shared.currentProfileName = name
+        layout = OverlayProfileStore.shared.load(profile: name)
+    }
+
+    private func createNewProfile() {
+        let existing = Set(OverlayProfileStore.shared.listProfiles())
+        var index = 1
+        var candidate = "profile\(index)"
+        while existing.contains(candidate) {
+            index += 1
+            candidate = "profile\(index)"
+        }
+        OverlayProfileStore.shared.save(layout, profile: candidate) // 今のレイアウトを複製
+        switchProfile(to: candidate)
     }
 
     @ViewBuilder
@@ -123,7 +163,6 @@ struct OverlayRootView: View {
     }
 }
 
-/// ドラッグで倒す仮想スティック。倒した方向・強さを-1〜1で通知する。
 private struct VirtualStick: View {
     var onChange: (Float, Float) -> Void
     private let radius: CGFloat = 50
@@ -156,7 +195,6 @@ private struct VirtualStick: View {
     }
 }
 
-/// 押している間だけ色が変わり、長押しで割り当て変更メニューを出すボタン。
 private struct PadButton: View {
     let slot: String
     @Binding var mapping: [String: String]
