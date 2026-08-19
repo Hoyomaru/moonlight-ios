@@ -67,7 +67,7 @@ struct OverlayRootView: View {
     }
 
     private func saveLayout() {
-        OverlayLayoutStore.shared.save(layout)
+        OverlayLayoutStore.shared.save(layout, gameID: gameID)
     }
 
     @ViewBuilder
