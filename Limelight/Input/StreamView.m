@@ -87,6 +87,11 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
         Log(LOG_I, @"Setting manual on-screen controls level: %d", (int)level);
         [onScreenControls setLevel:level];
     }
+
+    // Phase3: 自作SwiftUIオーバーレイに置き換えるため、Moonlight純正の
+    // オンスクリーンコントロールの見た目だけを強制的に消す。
+    // (コントローラー到着通知の仕組み自体には影響しない)
+    [onScreenControls setLevel:OnScreenControlsLevelOff];
     
     // It would be nice to just use GCMouse on iOS 14+ and the older API on iOS 13
     // but unfortunately that isn't possible today. GCMouse doesn't recognize many
