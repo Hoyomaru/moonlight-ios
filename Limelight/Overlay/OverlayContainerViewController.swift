@@ -1,8 +1,6 @@
 import SwiftUI
 import UIKit
 
-/// Objective-C側に伝える論理ボタン種別。
-/// Swiftの@objc enumはObjective-C側で OverlayButtonA のような名前になる。
 @objc public enum OverlayButton: Int {
     case a, b, x, y
     case dpadUp, dpadDown, dpadLeft, dpadRight
@@ -47,19 +45,15 @@ extension OverlayButton {
     }
 }
 
-/// Objective-C側がボタン/スティックのイベントを受け取るためのデリゲート。
 @objc public protocol OverlayContainerDelegate: AnyObject {
     func overlayButtonChanged(_ button: OverlayButton, pressed: Bool)
     func overlayLeftStickChanged(x: Float, y: Float)
 }
 
-/// Objective-C側 (StreamFrameViewController) から生成・アタッチするための
-/// SwiftUIオーバーレイのコンテナ。
 @objc(OverlayContainerViewController)
 public class OverlayContainerViewController: UIViewController {
 
     @objc public weak var delegate: OverlayContainerDelegate?
-    @objc public var gameID: String = "default"
 
     public override func viewDidLoad() {
         super.viewDidLoad()
@@ -68,8 +62,6 @@ public class OverlayContainerViewController: UIViewController {
         view.isUserInteractionEnabled = true
 
         let rootView = OverlayRootView(
-            gameID: gameID,
-            layout: OverlayLayoutStore.shared.load(gameID: gameID),
             onButtonChanged: { [weak self] button, pressed in
                 self?.delegate?.overlayButtonChanged(button, pressed: pressed)
             },
