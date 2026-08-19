@@ -1,47 +1,102 @@
 import SwiftUI
 
 /// オーバーレイの中身（SwiftUI側）。
-/// Step4-1: 位置・サイズを OverlayLayout（JSON保存可能）から読んで描画する形に変更。
-/// 見た目・動作はStep3-4と同じになるはずで、これは土台の切り替えのみ。
+/// Step4-2: 右上のボタンで編集モードに切り替え、各グループをドラッグで移動→自動保存できるようにする。
 struct OverlayRootView: View {
-    var layout: OverlayLayout
     var onButtonChanged: (OverlayButton, Bool) -> Void
     var onLeftStickChanged: (Float, Float) -> Void
 
+    @State private var layout: OverlayLayout
+    @State private var isEditing = false
+
+    init(layout: OverlayLayout,
+         onButtonChanged: @escaping (OverlayButton, Bool) -> Void,
+         onLeftStickChanged: @escaping (Float, Float) -> Void) {
+        _layout = State(initialValue: layout)
+        self.onButtonChanged = onButtonChanged
+        self.onLeftStickChanged = onLeftStickChanged
+    }
+
     var body: some View {
         GeometryReader { geo in
-            let stickPos = layout.resolvedPosition(for: layout.leftStick, in: geo.size)
-            let dpadPos = layout.resolvedPosition(for: layout.dpad, in: geo.size)
-            let abxyPos = layout.resolvedPosition(for: layout.abxy, in: geo.size)
-
             ZStack {
-                VirtualStick(onChange: onLeftStickChanged)
-                    .scaleEffect(layout.leftStick.scale)
-                    .position(stickPos)
-
-                VStack(spacing: 4) {
-                    PadButton(label: "▲") { onButtonChanged(.dpadUp, $0) }
-                    HStack(spacing: 4) {
-                        PadButton(label: "◀") { onButtonChanged(.dpadLeft, $0) }
-                        PadButton(label: "▶") { onButtonChanged(.dpadRight, $0) }
-                    }
-                    PadButton(label: "▼") { onButtonChanged(.dpadDown, $0) }
+                draggableGroup(size: geo.size, keyPath: \.leftStick) {
+                    VirtualStick(onChange: onLeftStickChanged)
+                        .scaleEffect(layout.leftStick.scale)
                 }
-                .scaleEffect(layout.dpad.scale)
-                .position(dpadPos)
 
-                VStack(spacing: 4) {
-                    PadButton(label: "Y") { onButtonChanged(.y, $0) }
-                    HStack(spacing: 4) {
-                        PadButton(label: "X") { onButtonChanged(.x, $0) }
-                        PadButton(label: "B") { onButtonChanged(.b, $0) }
+                draggableGroup(size: geo.size, keyPath: \.dpad) {
+                    VStack(spacing: 4) {
+                        PadButton(label: "▲") { onButtonChanged(.dpadUp, $0) }
+                        HStack(spacing: 4) {
+                            PadButton(label: "◀") { onButtonChanged(.dpadLeft, $0) }
+                            PadButton(label: "▶") { onButtonChanged(.dpadRight, $0) }
+                        }
+                        PadButton(label: "▼") { onButtonChanged(.dpadDown, $0) }
                     }
-                    PadButton(label: "A") { onButtonChanged(.a, $0) }
+                    .scaleEffect(layout.dpad.scale)
                 }
-                .scaleEffect(layout.abxy.scale)
-                .position(abxyPos)
+
+                draggableGroup(size: geo.size, keyPath: \.abxy) {
+                    VStack(spacing: 4) {
+                        PadButton(label: "Y") { onButtonChanged(.y, $0) }
+                        HStack(spacing: 4) {
+                            PadButton(label: "X") { onButtonChanged(.x, $0) }
+                            PadButton(label: "B") { onButtonChanged(.b, $0) }
+                        }
+                        PadButton(label: "A") { onButtonChanged(.a, $0) }
+                    }
+                    .scaleEffect(layout.abxy.scale)
+                }
+
+                // 編集モード切り替えボタン
+                Circle()
+                    .fill(isEditing ? Color.orange.opacity(0.85) : Color.green.opacity(0.6))
+                    .frame(width: 36, height: 36)
+                    .overlay(Text(isEditing ? "済" : "編").foregroundColor(.white).font(.caption))
+                    .position(x: geo.size.width - 30, y: 30)
+                    .onTapGesture {
+                        isEditing.toggle()
+                    }
             }
+            .coordinateSpace(name: "overlay")
         }
+    }
+
+    @ViewBuilder
+    private func draggableGroup<Content: View>(
+        size: CGSize,
+        keyPath: WritableKeyPath<OverlayLayout, OverlayElementLayout>,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        let position = layout.resolvedPosition(for: layout[keyPath: keyPath], in: size)
+
+        if isEditing {
+            content()
+                .allowsHitTesting(false) // 編集中はボタンとしての反応を止める
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.yellow, lineWidth: 2).padding(-8))
+                .contentShape(Rectangle().size(width: 100, height: 100))
+                .position(position)
+                .gesture(
+                    DragGesture(minimumDistance: 0, coordinateSpace: .named("overlay"))
+                        .onChanged { value in
+                            updatePosition(keyPath: keyPath, dragLocation: value.location, size: size)
+                        }
+                        .onEnded { _ in
+                            OverlayLayoutStore.shared.save(layout)
+                        }
+                )
+        } else {
+            content()
+                .position(position)
+        }
+    }
+
+    private func updatePosition(keyPath: WritableKeyPath<OverlayLayout, OverlayElementLayout>, dragLocation: CGPoint, size: CGSize) {
+        var element = layout[keyPath: keyPath]
+        element.offsetX = element.anchorX == "leading" ? dragLocation.x : size.width - dragLocation.x
+        element.offsetY = element.anchorY == "top" ? dragLocation.y : size.height - dragLocation.y
+        layout[keyPath: keyPath] = element
     }
 }
 
