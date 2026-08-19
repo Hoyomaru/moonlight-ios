@@ -733,7 +733,13 @@
 
 #if !TARGET_OS_TV
 - (void)overlayButtonAChanged:(BOOL)pressed {
-    Log(LOG_I, @"[Overlay] A button %@", pressed ? @"pressed" : @"released");
+    Controller* oscController = [_controllerSupport getOscController];
+    if (pressed) {
+        [_controllerSupport setButtonFlag:oscController flags:A_FLAG];
+    } else {
+        [_controllerSupport clearButtonFlag:oscController flags:A_FLAG];
+    }
+    [_controllerSupport updateFinished:oscController];
 }
 #endif
 
