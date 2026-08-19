@@ -59,6 +59,7 @@ extension OverlayButton {
 public class OverlayContainerViewController: UIViewController {
 
     @objc public weak var delegate: OverlayContainerDelegate?
+    @objc public var gameID: String = "default"
 
     public override func viewDidLoad() {
         super.viewDidLoad()
@@ -67,7 +68,8 @@ public class OverlayContainerViewController: UIViewController {
         view.isUserInteractionEnabled = true
 
         let rootView = OverlayRootView(
-            layout: OverlayLayoutStore.shared.load(),
+            gameID: gameID,
+            layout: OverlayLayoutStore.shared.load(gameID: gameID),
             onButtonChanged: { [weak self] button, pressed in
                 self?.delegate?.overlayButtonChanged(button, pressed: pressed)
             },
