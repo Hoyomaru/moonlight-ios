@@ -732,13 +732,34 @@
 #endif
 
 #if !TARGET_OS_TV
-- (void)overlayButtonAChanged:(BOOL)pressed {
+- (void)overlayButtonChanged:(enum OverlayButton)button pressed:(BOOL)pressed {
     Controller* oscController = [_controllerSupport getOscController];
-    if (pressed) {
-        [_controllerSupport setButtonFlag:oscController flags:A_FLAG];
-    } else {
-        [_controllerSupport clearButtonFlag:oscController flags:A_FLAG];
+
+    int flag = 0;
+    switch (button) {
+        case OverlayButtonA: flag = A_FLAG; break;
+        case OverlayButtonB: flag = B_FLAG; break;
+        case OverlayButtonX: flag = X_FLAG; break;
+        case OverlayButtonY: flag = Y_FLAG; break;
+        case OverlayButtonDpadUp: flag = UP_FLAG; break;
+        case OverlayButtonDpadDown: flag = DOWN_FLAG; break;
+        case OverlayButtonDpadLeft: flag = LEFT_FLAG; break;
+        case OverlayButtonDpadRight: flag = RIGHT_FLAG; break;
+        case OverlayButtonLb: flag = LB_FLAG; break;
+        case OverlayButtonRb: flag = RB_FLAG; break;
     }
+
+    if (pressed) {
+        [_controllerSupport setButtonFlag:oscController flags:flag];
+    } else {
+        [_controllerSupport clearButtonFlag:oscController flags:flag];
+    }
+    [_controllerSupport updateFinished:oscController];
+}
+
+- (void)overlayLeftStickChangedWithX:(float)x y:(float)y {
+    Controller* oscController = [_controllerSupport getOscController];
+    [_controllerSupport updateLeftStick:oscController x:(short)(x * 32767) y:(short)(y * 32767)];
     [_controllerSupport updateFinished:oscController];
 }
 #endif
