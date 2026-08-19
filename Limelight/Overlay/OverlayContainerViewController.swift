@@ -1,9 +1,18 @@
 import SwiftUI
 import UIKit
 
-/// Objective-C側から押下/離上イベントを受け取るためのデリゲート。
+/// Objective-C側に伝える論理ボタン種別。
+/// Swiftの@objc enumはObjective-C側で OverlayButtonA のような名前になる。
+@objc public enum OverlayButton: Int {
+    case a, b, x, y
+    case dpadUp, dpadDown, dpadLeft, dpadRight
+    case lb, rb
+}
+
+/// Objective-C側がボタン/スティックのイベントを受け取るためのデリゲート。
 @objc public protocol OverlayContainerDelegate: AnyObject {
-    func overlayButtonAChanged(_ pressed: Bool)
+    func overlayButtonChanged(_ button: OverlayButton, pressed: Bool)
+    func overlayLeftStickChanged(x: Float, y: Float)
 }
 
 /// Objective-C側 (StreamFrameViewController) から生成・アタッチするための
@@ -17,11 +26,16 @@ public class OverlayContainerViewController: UIViewController {
         super.viewDidLoad()
 
         view.backgroundColor = .clear
-        view.isUserInteractionEnabled = true // Step3: タップを受け付け始める
+        view.isUserInteractionEnabled = true
 
-        let rootView = OverlayRootView(onButtonAChanged: { [weak self] pressed in
-            self?.delegate?.overlayButtonAChanged(pressed)
-        })
+        let rootView = OverlayRootView(
+            onButtonChanged: { [weak self] button, pressed in
+                self?.delegate?.overlayButtonChanged(button, pressed: pressed)
+            },
+            onLeftStickChanged: { [weak self] x, y in
+                self?.delegate?.overlayLeftStickChanged(x: x, y: y)
+            }
+        )
         let hosting = UIHostingController(rootView: rootView)
         hosting.view.backgroundColor = .clear
 
