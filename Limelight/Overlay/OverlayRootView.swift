@@ -3,6 +3,7 @@ import SwiftUI
 /// オーバーレイの中身（SwiftUI側）。
 /// Step4-3: 編集モードでのドラッグ移動＋ピンチリサイズ、通常モードでの長押しキー割り当て変更に対応。
 struct OverlayRootView: View {
+    let gameID: String
     var onButtonChanged: (OverlayButton, Bool) -> Void
     var onLeftStickChanged: (Float, Float) -> Void
 
@@ -11,14 +12,15 @@ struct OverlayRootView: View {
     @State private var activeResizeKeyPath: WritableKeyPath<OverlayLayout, OverlayElementLayout>?
     @State private var resizeBaseScale: CGFloat = 1.0
 
-    init(layout: OverlayLayout,
+    init(gameID: String,
+         layout: OverlayLayout,
          onButtonChanged: @escaping (OverlayButton, Bool) -> Void,
          onLeftStickChanged: @escaping (Float, Float) -> Void) {
+        self.gameID = gameID
         _layout = State(initialValue: layout)
         self.onButtonChanged = onButtonChanged
         self.onLeftStickChanged = onLeftStickChanged
     }
-
     var body: some View {
         GeometryReader { geo in
             ZStack {
