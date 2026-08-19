@@ -1,10 +1,12 @@
 import SwiftUI
 
 /// オーバーレイの中身（SwiftUI側）。
-/// Step3-1: 「Aボタン」を1つだけ配置し、押下/離上のイベントが
-/// 正しくObjective-C側に届くかを確認する。
+/// Step3-2: 押している間だけAボタンの色が変わることで、
+/// タップ/リリースイベントが正しく検知できているかを目視確認する。
 struct OverlayRootView: View {
     var onButtonAChanged: (Bool) -> Void
+
+    @State private var isPressed = false
 
     var body: some View {
         GeometryReader { geo in
@@ -16,9 +18,9 @@ struct OverlayRootView: View {
                     .position(x: geo.size.width - 30, y: 30)
                     .allowsHitTesting(false)
 
-                // Aボタン（仮の見た目・仮の位置。Phase4のレイアウトエディタで可変にする）
+                // Aボタン：押している間は赤、離すと白に戻る
                 ZStack {
-                    Circle().fill(Color.white.opacity(0.35))
+                    Circle().fill(isPressed ? Color.red.opacity(0.8) : Color.white.opacity(0.35))
                     Text("A")
                         .foregroundColor(.white)
                         .font(.headline)
@@ -27,8 +29,16 @@ struct OverlayRootView: View {
                 .position(x: geo.size.width - 60, y: geo.size.height - 100)
                 .gesture(
                     DragGesture(minimumDistance: 0)
-                        .onChanged { _ in onButtonAChanged(true) }
-                        .onEnded { _ in onButtonAChanged(false) }
+                        .onChanged { _ in
+                            if !isPressed {
+                                isPressed = true
+                                onButtonAChanged(true)
+                            }
+                        }
+                        .onEnded { _ in
+                            isPressed = false
+                            onButtonAChanged(false)
+                        }
                 )
             }
         }
