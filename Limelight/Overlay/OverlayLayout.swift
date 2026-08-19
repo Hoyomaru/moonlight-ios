@@ -15,7 +15,6 @@ struct OverlayLayout: Codable {
     var leftStick: OverlayElementLayout
     var dpad: OverlayElementLayout
     var abxy: OverlayElementLayout
-    /// ボタンスロット("abxy_top"等) → 割り当てるOverlayButtonのmappingKey
     var buttonMapping: [String: String]
 
     static let defaultButtonMapping: [String: String] = [
@@ -37,27 +36,28 @@ struct OverlayLayout: Codable {
     }
 }
 
-/// レイアウトをJSONファイルとして端末に保存・読み込みする。
+/// レイアウトを「ゲームごとに」JSONファイルとして端末に保存・読み込みする。
+/// gameIDが空、または該当ゲーム用の保存ファイルがまだ無い場合は defaultLayout を返す
+/// （他ゲームの設定を勝手に流用しない）。
 final class OverlayLayoutStore {
     static let shared = OverlayLayoutStore()
 
-    private let fileURL: URL
-
-    private init() {
+    private func fileURL(for gameID: String) -> URL {
         let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        fileURL = dir.appendingPathComponent("overlay_layout.json")
+        let safeName = gameID.isEmpty ? "default" : gameID
+        return dir.appendingPathComponent("overlay_layout_\(safeName).json")
     }
 
-    func load() -> OverlayLayout {
-        guard let data = try? Data(contentsOf: fileURL),
+    func load(gameID: String) -> OverlayLayout {
+        guard let data = try? Data(contentsOf: fileURL(for: gameID)),
               let layout = try? JSONDecoder().decode(OverlayLayout.self, from: data) else {
             return .defaultLayout
         }
         return layout
     }
 
-    func save(_ layout: OverlayLayout) {
+    func save(_ layout: OverlayLayout, gameID: String) {
         guard let data = try? JSONEncoder().encode(layout) else { return }
-        try? data.write(to: fileURL, options: .atomic)
+        try? data.write(to: fileURL(for: gameID), options: .atomic)
     }
 }
