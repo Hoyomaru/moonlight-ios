@@ -1,13 +1,15 @@
 import SwiftUI
 
 /// オーバーレイの中身（SwiftUI側）。
-/// Step4-2: 右上のボタンで編集モードに切り替え、各グループをドラッグで移動→自動保存できるようにする。
+/// Step4-3: 編集モードでのドラッグ移動＋ピンチリサイズ、通常モードでの長押しキー割り当て変更に対応。
 struct OverlayRootView: View {
     var onButtonChanged: (OverlayButton, Bool) -> Void
     var onLeftStickChanged: (Float, Float) -> Void
 
     @State private var layout: OverlayLayout
     @State private var isEditing = false
+    @State private var activeResizeKeyPath: WritableKeyPath<OverlayLayout, OverlayElementLayout>?
+    @State private var resizeBaseScale: CGFloat = 1.0
 
     init(layout: OverlayLayout,
          onButtonChanged: @escaping (OverlayButton, Bool) -> Void,
@@ -27,29 +29,28 @@ struct OverlayRootView: View {
 
                 draggableGroup(size: geo.size, keyPath: \.dpad) {
                     VStack(spacing: 4) {
-                        PadButton(label: "▲") { onButtonChanged(.dpadUp, $0) }
+                        PadButton(slot: "dpad_up", mapping: $layout.buttonMapping, onButtonChanged: onButtonChanged) { saveLayout() }
                         HStack(spacing: 4) {
-                            PadButton(label: "◀") { onButtonChanged(.dpadLeft, $0) }
-                            PadButton(label: "▶") { onButtonChanged(.dpadRight, $0) }
+                            PadButton(slot: "dpad_left", mapping: $layout.buttonMapping, onButtonChanged: onButtonChanged) { saveLayout() }
+                            PadButton(slot: "dpad_right", mapping: $layout.buttonMapping, onButtonChanged: onButtonChanged) { saveLayout() }
                         }
-                        PadButton(label: "▼") { onButtonChanged(.dpadDown, $0) }
+                        PadButton(slot: "dpad_down", mapping: $layout.buttonMapping, onButtonChanged: onButtonChanged) { saveLayout() }
                     }
                     .scaleEffect(layout.dpad.scale)
                 }
 
                 draggableGroup(size: geo.size, keyPath: \.abxy) {
                     VStack(spacing: 4) {
-                        PadButton(label: "Y") { onButtonChanged(.y, $0) }
+                        PadButton(slot: "abxy_top", mapping: $layout.buttonMapping, onButtonChanged: onButtonChanged) { saveLayout() }
                         HStack(spacing: 4) {
-                            PadButton(label: "X") { onButtonChanged(.x, $0) }
-                            PadButton(label: "B") { onButtonChanged(.b, $0) }
+                            PadButton(slot: "abxy_left", mapping: $layout.buttonMapping, onButtonChanged: onButtonChanged) { saveLayout() }
+                            PadButton(slot: "abxy_right", mapping: $layout.buttonMapping, onButtonChanged: onButtonChanged) { saveLayout() }
                         }
-                        PadButton(label: "A") { onButtonChanged(.a, $0) }
+                        PadButton(slot: "abxy_bottom", mapping: $layout.buttonMapping, onButtonChanged: onButtonChanged) { saveLayout() }
                     }
                     .scaleEffect(layout.abxy.scale)
                 }
 
-                // 編集モード切り替えボタン
                 Circle()
                     .fill(isEditing ? Color.orange.opacity(0.85) : Color.green.opacity(0.6))
                     .frame(width: 36, height: 36)
@@ -63,6 +64,10 @@ struct OverlayRootView: View {
         }
     }
 
+    private func saveLayout() {
+        OverlayLayoutStore.shared.save(layout)
+    }
+
     @ViewBuilder
     private func draggableGroup<Content: View>(
         size: CGSize,
@@ -73,17 +78,33 @@ struct OverlayRootView: View {
 
         if isEditing {
             content()
-                .allowsHitTesting(false) // 編集中はボタンとしての反応を止める
+                .allowsHitTesting(false)
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.yellow, lineWidth: 2).padding(-8))
-                .contentShape(Rectangle().size(width: 100, height: 100))
+                .contentShape(Rectangle().size(width: 110, height: 110))
                 .position(position)
                 .gesture(
                     DragGesture(minimumDistance: 0, coordinateSpace: .named("overlay"))
                         .onChanged { value in
                             updatePosition(keyPath: keyPath, dragLocation: value.location, size: size)
                         }
+                        .onEnded { _ in saveLayout() }
+                )
+                .simultaneousGesture(
+                    MagnificationGesture()
+                        .onChanged { value in
+                            if activeResizeKeyPath == nil {
+                                activeResizeKeyPath = keyPath
+                                resizeBaseScale = layout[keyPath: keyPath].scale
+                            }
+                            if activeResizeKeyPath == keyPath {
+                                var element = layout[keyPath: keyPath]
+                                element.scale = min(2.0, max(0.5, resizeBaseScale * value))
+                                layout[keyPath: keyPath] = element
+                            }
+                        }
                         .onEnded { _ in
-                            OverlayLayoutStore.shared.save(layout)
+                            activeResizeKeyPath = nil
+                            saveLayout()
                         }
                 )
         } else {
@@ -133,17 +154,23 @@ private struct VirtualStick: View {
     }
 }
 
-/// 押している間だけ色が変わる単一ボタン。
+/// 押している間だけ色が変わり、長押しで割り当て変更メニューを出すボタン。
 private struct PadButton: View {
-    let label: String
-    let onChanged: (Bool) -> Void
+    let slot: String
+    @Binding var mapping: [String: String]
+    let onButtonChanged: (OverlayButton, Bool) -> Void
+    let onMappingChanged: () -> Void
 
     @State private var isPressed = false
+
+    private var assignedButton: OverlayButton {
+        OverlayButton.from(mappingKey: mapping[slot] ?? "")
+    }
 
     var body: some View {
         ZStack {
             Circle().fill(isPressed ? Color.red.opacity(0.8) : Color.white.opacity(0.35))
-            Text(label).foregroundColor(.white).font(.headline)
+            Text(assignedButton.displayLabel).foregroundColor(.white).font(.headline)
         }
         .frame(width: 50, height: 50)
         .gesture(
@@ -151,13 +178,21 @@ private struct PadButton: View {
                 .onChanged { _ in
                     if !isPressed {
                         isPressed = true
-                        onChanged(true)
+                        onButtonChanged(assignedButton, true)
                     }
                 }
                 .onEnded { _ in
                     isPressed = false
-                    onChanged(false)
+                    onButtonChanged(assignedButton, false)
                 }
         )
+        .contextMenu {
+            ForEach(OverlayButton.allAssignable, id: \.mappingKey) { candidate in
+                Button(candidate.displayLabel) {
+                    mapping[slot] = candidate.mappingKey
+                    onMappingChanged()
+                }
+            }
+        }
     }
 }
