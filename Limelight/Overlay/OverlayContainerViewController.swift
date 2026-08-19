@@ -29,6 +29,7 @@ public class OverlayContainerViewController: UIViewController {
         view.isUserInteractionEnabled = true
 
         let rootView = OverlayRootView(
+            layout: OverlayLayoutStore.shared.load(),
             onButtonChanged: { [weak self] button, pressed in
                 self?.delegate?.overlayButtonChanged(button, pressed: pressed)
             },
