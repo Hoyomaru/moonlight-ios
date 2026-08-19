@@ -9,6 +9,44 @@ import UIKit
     case lb, rb
 }
 
+extension OverlayButton {
+    static let allAssignable: [OverlayButton] = [.a, .b, .x, .y, .lb, .rb, .dpadUp, .dpadDown, .dpadLeft, .dpadRight]
+
+    var mappingKey: String {
+        switch self {
+        case .a: return "a"
+        case .b: return "b"
+        case .x: return "x"
+        case .y: return "y"
+        case .dpadUp: return "dpadUp"
+        case .dpadDown: return "dpadDown"
+        case .dpadLeft: return "dpadLeft"
+        case .dpadRight: return "dpadRight"
+        case .lb: return "lb"
+        case .rb: return "rb"
+        }
+    }
+
+    var displayLabel: String {
+        switch self {
+        case .a: return "A"
+        case .b: return "B"
+        case .x: return "X"
+        case .y: return "Y"
+        case .dpadUp: return "▲"
+        case .dpadDown: return "▼"
+        case .dpadLeft: return "◀"
+        case .dpadRight: return "▶"
+        case .lb: return "LB"
+        case .rb: return "RB"
+        }
+    }
+
+    static func from(mappingKey: String) -> OverlayButton {
+        allAssignable.first { $0.mappingKey == mappingKey } ?? .a
+    }
+}
+
 /// Objective-C側がボタン/スティックのイベントを受け取るためのデリゲート。
 @objc public protocol OverlayContainerDelegate: AnyObject {
     func overlayButtonChanged(_ button: OverlayButton, pressed: Bool)
