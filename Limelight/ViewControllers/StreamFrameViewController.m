@@ -12,6 +12,7 @@
 #import "StreamManager.h"
 #import "ControllerSupport.h"
 #import "DataManager.h"
+#import "Moonlight-Swift.h"
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -45,6 +46,9 @@
     UIActivityIndicatorView *_spinner;
     StreamView *_streamView;
     UIScrollView *_scrollView;
+#if !TARGET_OS_TV
+    OverlayContainerViewController *_overlayContainerVC;
+#endif
     BOOL _userIsInteracting;
     CGSize _keyboardSize;
     
@@ -205,7 +209,17 @@
         // Add StreamView directly in relative mode
         [self.view addSubview:_streamView];
     }
-    
+
+#if !TARGET_OS_TV
+    // Phase 2: SwiftUIの透明オーバーレイをStreamViewの上に重ねる（今は表示確認のみ、タッチは奪わない）
+    _overlayContainerVC = [[OverlayContainerViewController alloc] init];
+    [self addChildViewController:_overlayContainerVC];
+    _overlayContainerVC.view.frame = self.view.bounds;
+    _overlayContainerVC.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [self.view addSubview:_overlayContainerVC.view];
+    [_overlayContainerVC didMoveToParentViewController:self];
+#endif
+
     [self.view addSubview:_stageLabel];
     [self.view addSubview:_spinner];
     [self.view addSubview:_tipLabel];
