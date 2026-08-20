@@ -78,4 +78,26 @@ final class OverlayProfileStore {
         guard let data = try? JSONEncoder().encode(layout) else { return }
         try? data.write(to: fileURL(for: profile), options: .atomic)
     }
+
+    /// プロファイルを削除する。削除したものが選択中だった場合はdefaultに切り替える。
+    func delete(profile: String) {
+        try? FileManager.default.removeItem(at: fileURL(for: profile))
+        if currentProfileName == profile {
+            currentProfileName = "default"
+        }
+    }
+
+    /// プロファイル名を変更する。中身はそのまま新しい名前のファイルへ引き継ぐ。
+    func rename(_ oldName: String, to newName: String) {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != oldName else { return }
+
+        let layout = load(profile: oldName)
+        save(layout, profile: trimmed)
+        try? FileManager.default.removeItem(at: fileURL(for: oldName))
+
+        if currentProfileName == oldName {
+            currentProfileName = trimmed
+        }
+    }
 }
