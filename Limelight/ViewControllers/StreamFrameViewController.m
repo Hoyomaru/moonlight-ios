@@ -747,6 +747,8 @@
         case OverlayButtonDpadRight: flag = RIGHT_FLAG; break;
         case OverlayButtonLb: flag = LB_FLAG; break;
         case OverlayButtonRb: flag = RB_FLAG; break;
+        case OverlayButtonStart: flag = PLAY_FLAG; break;
+        case OverlayButtonBack: flag = BACK_FLAG; break;
     }
 
     if (pressed) {
@@ -760,6 +762,23 @@
 - (void)overlayLeftStickChangedWithX:(float)x y:(float)y {
     Controller* oscController = [_controllerSupport getOscController];
     [_controllerSupport updateLeftStick:oscController x:(short)(x * 32767) y:(short)(y * 32767)];
+    [_controllerSupport updateFinished:oscController];
+}
+
+- (void)overlayRightStickChangedWithX:(float)x y:(float)y {
+    Controller* oscController = [_controllerSupport getOscController];
+    [_controllerSupport updateRightStick:oscController x:(short)(x * 32767) y:(short)(y * 32767)];
+    [_controllerSupport updateFinished:oscController];
+}
+
+- (void)overlayTriggerChanged:(enum OverlayTrigger)trigger pressed:(BOOL)pressed {
+    Controller* oscController = [_controllerSupport getOscController];
+    unsigned char value = pressed ? 0xFF : 0x00;
+    if (trigger == OverlayTriggerLeft) {
+        [_controllerSupport updateLeftTrigger:oscController left:value];
+    } else {
+        [_controllerSupport updateRightTrigger:oscController right:value];
+    }
     [_controllerSupport updateFinished:oscController];
 }
 #endif
