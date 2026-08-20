@@ -5,10 +5,11 @@ import UIKit
     case a, b, x, y
     case dpadUp, dpadDown, dpadLeft, dpadRight
     case lb, rb
+    case start, back
 }
 
 extension OverlayButton {
-    static let allAssignable: [OverlayButton] = [.a, .b, .x, .y, .lb, .rb, .dpadUp, .dpadDown, .dpadLeft, .dpadRight]
+    static let allAssignable: [OverlayButton] = [.a, .b, .x, .y, .lb, .rb, .start, .back, .dpadUp, .dpadDown, .dpadLeft, .dpadRight]
 
     var mappingKey: String {
         switch self {
@@ -22,6 +23,8 @@ extension OverlayButton {
         case .dpadRight: return "dpadRight"
         case .lb: return "lb"
         case .rb: return "rb"
+        case .start: return "start"
+        case .back: return "back"
         }
     }
 
@@ -37,6 +40,8 @@ extension OverlayButton {
         case .dpadRight: return "▶"
         case .lb: return "LB"
         case .rb: return "RB"
+        case .start: return "St"
+        case .back: return "Bk"
         }
     }
 
@@ -45,9 +50,16 @@ extension OverlayButton {
     }
 }
 
+/// L2/R2（アナログトリガー）用。ボタン系のフラグとは別経路(updateLeftTrigger/updateRightTrigger)で送る。
+@objc public enum OverlayTrigger: Int {
+    case left, right
+}
+
 @objc public protocol OverlayContainerDelegate: AnyObject {
     func overlayButtonChanged(_ button: OverlayButton, pressed: Bool)
     func overlayLeftStickChanged(x: Float, y: Float)
+    func overlayRightStickChanged(x: Float, y: Float)
+    func overlayTriggerChanged(_ trigger: OverlayTrigger, pressed: Bool)
 }
 
 @objc(OverlayContainerViewController)
@@ -67,6 +79,12 @@ public class OverlayContainerViewController: UIViewController {
             },
             onLeftStickChanged: { [weak self] x, y in
                 self?.delegate?.overlayLeftStickChanged(x: x, y: y)
+            },
+            onRightStickChanged: { [weak self] x, y in
+                self?.delegate?.overlayRightStickChanged(x: x, y: y)
+            },
+            onTriggerChanged: { [weak self] trigger, pressed in
+                self?.delegate?.overlayTriggerChanged(trigger, pressed: pressed)
             }
         )
         let hosting = UIHostingController(rootView: rootView)
