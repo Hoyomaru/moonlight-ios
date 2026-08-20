@@ -1,10 +1,12 @@
 import SwiftUI
 
 /// オーバーレイの中身（SwiftUI側）。
-/// Step B-2: プロファイルの切り替え・新規作成に加え、名前変更・削除に対応。
+/// Step C: 右スティック・LB/RB・LT/RT・Start/Backを追加したフルボタン版。
 struct OverlayRootView: View {
     var onButtonChanged: (OverlayButton, Bool) -> Void
     var onLeftStickChanged: (Float, Float) -> Void
+    var onRightStickChanged: (Float, Float) -> Void
+    var onTriggerChanged: (OverlayTrigger, Bool) -> Void
 
     @State private var currentProfile: String
     @State private var layout: OverlayLayout
@@ -17,12 +19,16 @@ struct OverlayRootView: View {
     @State private var renameText = ""
 
     init(onButtonChanged: @escaping (OverlayButton, Bool) -> Void,
-         onLeftStickChanged: @escaping (Float, Float) -> Void) {
+         onLeftStickChanged: @escaping (Float, Float) -> Void,
+         onRightStickChanged: @escaping (Float, Float) -> Void,
+         onTriggerChanged: @escaping (OverlayTrigger, Bool) -> Void) {
         let profile = OverlayProfileStore.shared.currentProfileName
         _currentProfile = State(initialValue: profile)
         _layout = State(initialValue: OverlayProfileStore.shared.load(profile: profile))
         self.onButtonChanged = onButtonChanged
         self.onLeftStickChanged = onLeftStickChanged
+        self.onRightStickChanged = onRightStickChanged
+        self.onTriggerChanged = onTriggerChanged
     }
 
     var body: some View {
@@ -31,6 +37,11 @@ struct OverlayRootView: View {
                 draggableGroup(size: geo.size, keyPath: \.leftStick) {
                     VirtualStick(onChange: onLeftStickChanged)
                         .scaleEffect(layout.leftStick.scale)
+                }
+
+                draggableGroup(size: geo.size, keyPath: \.rightStick) {
+                    VirtualStick(onChange: onRightStickChanged)
+                        .scaleEffect(layout.rightStick.scale)
                 }
 
                 draggableGroup(size: geo.size, keyPath: \.dpad) {
@@ -57,6 +68,33 @@ struct OverlayRootView: View {
                     .scaleEffect(layout.abxy.scale)
                 }
 
+                // LB + LT
+                draggableGroup(size: geo.size, keyPath: \.leftShoulder) {
+                    VStack(spacing: 4) {
+                        PadButton(slot: "left_shoulder_lb", mapping: $layout.buttonMapping, onButtonChanged: onButtonChanged) { saveLayout() }
+                        TriggerButton(label: "LT", trigger: .left, onChanged: onTriggerChanged)
+                    }
+                    .scaleEffect(layout.leftShoulder.scale)
+                }
+
+                // RB + RT
+                draggableGroup(size: geo.size, keyPath: \.rightShoulder) {
+                    VStack(spacing: 4) {
+                        PadButton(slot: "right_shoulder_rb", mapping: $layout.buttonMapping, onButtonChanged: onButtonChanged) { saveLayout() }
+                        TriggerButton(label: "RT", trigger: .right, onChanged: onTriggerChanged)
+                    }
+                    .scaleEffect(layout.rightShoulder.scale)
+                }
+
+                // Start + Back
+                draggableGroup(size: geo.size, keyPath: \.menu) {
+                    HStack(spacing: 4) {
+                        PadButton(slot: "menu_back", mapping: $layout.buttonMapping, onButtonChanged: onButtonChanged) { saveLayout() }
+                        PadButton(slot: "menu_start", mapping: $layout.buttonMapping, onButtonChanged: onButtonChanged) { saveLayout() }
+                    }
+                    .scaleEffect(layout.menu.scale)
+                }
+
                 // 編集モード切り替えボタン
                 Circle()
                     .fill(isEditing ? Color.orange.opacity(0.85) : Color.green.opacity(0.6))
@@ -65,7 +103,7 @@ struct OverlayRootView: View {
                     .position(x: geo.size.width - 30, y: 30)
                     .onTapGesture { isEditing.toggle() }
 
-                // プロファイル切り替えボタン（長押しでメニュー。各プロファイルはさらにサブメニューを持つ）
+                // プロファイル切り替えボタン
                 Circle()
                     .fill(Color.blue.opacity(0.7))
                     .frame(width: 36, height: 36)
@@ -80,14 +118,10 @@ struct OverlayRootView: View {
                                     renameText = name
                                     showRenameAlert = true
                                 }
-                                Button("削除", role: .destructive) {
-                                    deleteProfile(name)
-                                }
+                                Button("削除", role: .destructive) { deleteProfile(name) }
                             }
                         }
-                        Button("新規プロファイルを作成") {
-                            createNewProfile()
-                        }
+                        Button("新規プロファイルを作成") { createNewProfile() }
                     }
 
                 Text(currentProfile)
@@ -101,7 +135,6 @@ struct OverlayRootView: View {
             TextField("名前", text: $renameText)
             Button("変更") {
                 OverlayProfileStore.shared.rename(renameTarget, to: renameText)
-                // 表示中のプロファイルが変更対象だった場合、表示名も追従させる
                 if currentProfile == renameTarget {
                     currentProfile = OverlayProfileStore.shared.currentProfileName
                 }
@@ -134,10 +167,8 @@ struct OverlayRootView: View {
 
     private func deleteProfile(_ name: String) {
         let remaining = OverlayProfileStore.shared.listProfiles().filter { $0 != name }
-        guard !remaining.isEmpty else { return } // 最後の1つは削除させない
-
+        guard !remaining.isEmpty else { return }
         OverlayProfileStore.shared.delete(profile: name)
-
         if currentProfile == name {
             let newCurrent = OverlayProfileStore.shared.currentProfileName
             currentProfile = newCurrent
@@ -269,5 +300,36 @@ private struct PadButton: View {
                 }
             }
         }
+    }
+}
+
+/// L2/R2用。押している間は最大値、離すと0を送る（アナログの踏み込み具合は今回非対応）。
+private struct TriggerButton: View {
+    let label: String
+    let trigger: OverlayTrigger
+    let onChanged: (OverlayTrigger, Bool) -> Void
+
+    @State private var isPressed = false
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isPressed ? Color.red.opacity(0.8) : Color.white.opacity(0.25))
+            Text(label).foregroundColor(.white).font(.caption).bold()
+        }
+        .frame(width: 50, height: 34)
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    if !isPressed {
+                        isPressed = true
+                        onChanged(trigger, true)
+                    }
+                }
+                .onEnded { _ in
+                    isPressed = false
+                    onChanged(trigger, false)
+                }
+        )
     }
 }
