@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// オーバーレイの中身（SwiftUI側）。
-/// Step B: 「P」ボタンで手動プロファイル切り替え・新規作成に対応。
+/// Step B-2: プロファイルの切り替え・新規作成に加え、名前変更・削除に対応。
 struct OverlayRootView: View {
     var onButtonChanged: (OverlayButton, Bool) -> Void
     var onLeftStickChanged: (Float, Float) -> Void
@@ -11,6 +11,10 @@ struct OverlayRootView: View {
     @State private var isEditing = false
     @State private var activeResizeKeyPath: WritableKeyPath<OverlayLayout, OverlayElementLayout>?
     @State private var resizeBaseScale: CGFloat = 1.0
+
+    @State private var showRenameAlert = false
+    @State private var renameTarget = ""
+    @State private var renameText = ""
 
     init(onButtonChanged: @escaping (OverlayButton, Bool) -> Void,
          onLeftStickChanged: @escaping (Float, Float) -> Void) {
@@ -61,7 +65,7 @@ struct OverlayRootView: View {
                     .position(x: geo.size.width - 30, y: 30)
                     .onTapGesture { isEditing.toggle() }
 
-                // プロファイル切り替えボタン（長押しでメニュー）
+                // プロファイル切り替えボタン（長押しでメニュー。各プロファイルはさらにサブメニューを持つ）
                 Circle()
                     .fill(Color.blue.opacity(0.7))
                     .frame(width: 36, height: 36)
@@ -69,8 +73,16 @@ struct OverlayRootView: View {
                     .position(x: geo.size.width - 30, y: 74)
                     .contextMenu {
                         ForEach(OverlayProfileStore.shared.listProfiles(), id: \.self) { name in
-                            Button(name == currentProfile ? "✓ \(name)" : name) {
-                                switchProfile(to: name)
+                            Menu(name == currentProfile ? "✓ \(name)" : name) {
+                                Button("これに切り替え") { switchProfile(to: name) }
+                                Button("名前を変更") {
+                                    renameTarget = name
+                                    renameText = name
+                                    showRenameAlert = true
+                                }
+                                Button("削除", role: .destructive) {
+                                    deleteProfile(name)
+                                }
                             }
                         }
                         Button("新規プロファイルを作成") {
@@ -78,13 +90,23 @@ struct OverlayRootView: View {
                         }
                     }
 
-                // 現在のプロファイル名を薄く表示
                 Text(currentProfile)
                     .font(.caption2)
                     .foregroundColor(.white.opacity(0.6))
                     .position(x: geo.size.width - 30, y: 96)
             }
             .coordinateSpace(name: "overlay")
+        }
+        .alert("プロファイル名を変更", isPresented: $showRenameAlert) {
+            TextField("名前", text: $renameText)
+            Button("変更") {
+                OverlayProfileStore.shared.rename(renameTarget, to: renameText)
+                // 表示中のプロファイルが変更対象だった場合、表示名も追従させる
+                if currentProfile == renameTarget {
+                    currentProfile = OverlayProfileStore.shared.currentProfileName
+                }
+            }
+            Button("キャンセル", role: .cancel) {}
         }
     }
 
@@ -106,8 +128,21 @@ struct OverlayRootView: View {
             index += 1
             candidate = "profile\(index)"
         }
-        OverlayProfileStore.shared.save(layout, profile: candidate) // 今のレイアウトを複製
+        OverlayProfileStore.shared.save(layout, profile: candidate)
         switchProfile(to: candidate)
+    }
+
+    private func deleteProfile(_ name: String) {
+        let remaining = OverlayProfileStore.shared.listProfiles().filter { $0 != name }
+        guard !remaining.isEmpty else { return } // 最後の1つは削除させない
+
+        OverlayProfileStore.shared.delete(profile: name)
+
+        if currentProfile == name {
+            let newCurrent = OverlayProfileStore.shared.currentProfileName
+            currentProfile = newCurrent
+            layout = OverlayProfileStore.shared.load(profile: newCurrent)
+        }
     }
 
     @ViewBuilder
